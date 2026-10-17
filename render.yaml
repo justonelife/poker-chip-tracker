@@ -1,0 +1,17 @@
+# Render Blueprint: New → Blueprint → pick this repo.
+services:
+  - type: web
+    name: poker-chip-tracker
+    runtime: node
+    plan: free
+    buildCommand: npm ci
+    startCommand: npm start
+    healthCheckPath: /health
+    envVars:
+      # better-sqlite3 13 needs Node >= 22 (ships prebuilt binaries for it).
+      - key: NODE_VERSION
+        value: "22"
+      # Free-tier disk is ephemeral: /tmp is wiped on every deploy/restart/sleep.
+      # Fine for 24h table sessions; attach a persistent disk for anything longer.
+      - key: DATA_DIR
+        value: /tmp/chip-data

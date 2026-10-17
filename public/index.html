@@ -1,0 +1,351 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#0a1410">
+  <meta name="color-scheme" content="dark">
+  <meta name="description" content="Track chips for a live heads-up poker game on two phones: shared room, hand history, undo and settle-up.">
+  <title>Chip Tracker</title>
+  <link rel="icon" href="/icon.svg" type="image/svg+xml">
+  <link rel="manifest" href="/manifest.webmanifest">
+  <link rel="stylesheet" href="/css/tokens.css">
+  <link rel="stylesheet" href="/css/app.css">
+  <script type="module" src="/js/app.js"></script>
+</head>
+<body>
+  <a class="skip-link" href="#main">Skip to content</a>
+  <div id="live" class="visually-hidden" aria-live="polite" aria-atomic="true"></div>
+
+  <main id="main" tabindex="-1">
+    <!-- ===================== Home: create / join ===================== -->
+    <section id="view-home" class="view home" aria-labelledby="home-title" hidden>
+      <header class="brand">
+        <span class="brand-mark" aria-hidden="true"></span>
+        <div>
+          <h1 id="home-title" class="brand-title">Chip Tracker</h1>
+          <p class="brand-sub">Heads-up chip ledger for live games. One room, two phones.</p>
+        </div>
+      </header>
+
+      <form id="create-form" class="card form" novalidate aria-labelledby="create-title">
+        <h2 id="create-title" class="card-title">New session</h2>
+        <div class="grid-2">
+          <label class="field">
+            <span class="field-label">Player 1</span>
+            <input id="c-name0" name="name0" maxlength="24" placeholder="Bạn" autocomplete="off" enterkeyhint="next">
+          </label>
+          <label class="field">
+            <span class="field-label">Player 2</span>
+            <input id="c-name1" name="name1" maxlength="24" placeholder="Đối thủ" autocomplete="off" enterkeyhint="next">
+          </label>
+          <label class="field">
+            <span class="field-label">Starting stack</span>
+            <input id="c-stack0" name="stack0" inputmode="numeric" pattern="[0-9]*" value="1000" required autocomplete="off">
+          </label>
+          <label class="field">
+            <span class="field-label">Starting stack</span>
+            <input id="c-stack1" name="stack1" inputmode="numeric" pattern="[0-9]*" value="1000" required autocomplete="off">
+          </label>
+        </div>
+        <fieldset class="fieldset">
+          <legend class="field-label">Blinds <span class="optional">optional</span></legend>
+          <div class="grid-2">
+            <label class="field">
+              <span class="field-label field-label-sub">Small blind</span>
+              <input id="c-sb" name="sb" inputmode="numeric" pattern="[0-9]*" placeholder="e.g. 5" autocomplete="off">
+            </label>
+            <label class="field">
+              <span class="field-label field-label-sub">Big blind</span>
+              <input id="c-bb" name="bb" inputmode="numeric" pattern="[0-9]*" placeholder="e.g. 10" autocomplete="off">
+            </label>
+          </div>
+        </fieldset>
+        <p id="create-error" class="form-error" role="alert"></p>
+        <button id="create-submit" class="btn btn-primary btn-block btn-lg" type="submit">Create room</button>
+      </form>
+
+      <form id="join-form" class="card form" novalidate aria-labelledby="join-title">
+        <h2 id="join-title" class="card-title">Join a room</h2>
+        <label class="field">
+          <span class="field-label">Room code</span>
+          <input id="j-code" name="code" class="code-input" maxlength="7" placeholder="ABC234"
+                 autocapitalize="characters" autocomplete="off" autocorrect="off" spellcheck="false" enterkeyhint="go">
+        </label>
+        <p id="join-error" class="form-error" role="alert"></p>
+        <button id="join-submit" class="btn btn-secondary btn-block btn-lg" type="submit">Join</button>
+      </form>
+
+      <section id="recent" class="card" aria-labelledby="recent-title" hidden>
+        <h2 id="recent-title" class="card-title">Recent rooms</h2>
+        <ul id="recent-list" class="recent-list"></ul>
+      </section>
+    </section>
+
+    <!-- ===================== Room ===================== -->
+    <section id="view-room" class="view room" aria-label="Room" hidden>
+      <header class="topbar">
+        <button id="room-code-btn" class="code-chip" type="button" aria-describedby="room-code-hint">
+          <span class="code-chip-label">Room</span>
+          <span id="room-code" class="code-chip-value">------</span>
+        </button>
+        <span id="room-code-hint" class="visually-hidden">Copies a join link</span>
+        <span id="sync" class="sync" data-state="ok">
+          <span class="sync-dot" aria-hidden="true"></span>
+          <span id="sync-text">Live</span>
+        </span>
+      </header>
+
+      <!-- ---------- Table ---------- -->
+      <div id="panel-table" class="panel panel-table" role="tabpanel" aria-labelledby="tab-table">
+        <section class="pot-card" aria-labelledby="pot-label">
+          <div class="pot-head">
+            <p id="hand-meta" class="meta">Hand 1</p>
+            <button id="undo-btn" class="btn btn-ghost btn-sm" type="button" disabled>Undo</button>
+          </div>
+          <div class="pot-main">
+            <p id="pot-label" class="pot-label">Pot</p>
+            <p id="pot" class="pot-value">0</p>
+          </div>
+          <p id="pot-detail" class="meta pot-detail"></p>
+          <div id="pot-idle" class="pot-actions">
+            <button id="blinds-btn" class="btn btn-tonal btn-block" type="button" hidden>Post blinds</button>
+            <p id="idle-hint" class="hint">Enter an amount, then tap a player to bet.</p>
+          </div>
+          <div id="pot-live" class="pot-actions pot-actions-3" role="group" aria-label="Showdown: who won the pot?" hidden>
+            <button class="btn btn-tonal" type="button" data-showdown="0"><span class="sd"><span class="sd-name" data-name="0">P1</span><span>wins</span></span></button>
+            <button class="btn btn-tonal" type="button" data-showdown="split">Split</button>
+            <button class="btn btn-tonal" type="button" data-showdown="1"><span class="sd"><span class="sd-name" data-name="1">P2</span><span>wins</span></span></button>
+          </div>
+        </section>
+
+        <div class="players">
+          <article class="player" data-player="0" aria-labelledby="pname-0">
+            <header class="player-head">
+              <span class="player-dot" aria-hidden="true"></span>
+              <h2 id="pname-0" class="player-name" data-name="0">P1</h2>
+              <span class="dealer" data-role="dealer" title="Dealer button" hidden>D</span>
+            </header>
+            <button class="stack" type="button" data-role="stack" aria-describedby="stack-hint">0</button>
+            <form class="stack-edit" data-role="stack-edit" novalidate hidden>
+              <label class="visually-hidden" for="stack-input-0">New stack</label>
+              <input id="stack-input-0" class="stack-input" inputmode="numeric" pattern="[0-9]*" autocomplete="off">
+              <div class="stack-edit-actions">
+                <button class="btn btn-primary btn-sm" type="submit">Save</button>
+                <button class="btn btn-ghost btn-sm" type="button" data-role="stack-cancel">Cancel</button>
+              </div>
+            </form>
+            <div class="chips" aria-hidden="true"><i></i><i></i><i></i></div>
+            <p class="player-meta" data-role="inpot">&nbsp;</p>
+            <div class="player-actions">
+              <button class="btn btn-danger btn-sm" type="button" data-act="fold">Fold</button>
+              <button class="btn btn-tonal btn-sm" type="button" data-act="allin">All-in</button>
+            </div>
+          </article>
+
+          <article class="player" data-player="1" aria-labelledby="pname-1">
+            <header class="player-head">
+              <span class="player-dot" aria-hidden="true"></span>
+              <h2 id="pname-1" class="player-name" data-name="1">P2</h2>
+              <span class="dealer" data-role="dealer" title="Dealer button" hidden>D</span>
+            </header>
+            <button class="stack" type="button" data-role="stack" aria-describedby="stack-hint">0</button>
+            <form class="stack-edit" data-role="stack-edit" novalidate hidden>
+              <label class="visually-hidden" for="stack-input-1">New stack</label>
+              <input id="stack-input-1" class="stack-input" inputmode="numeric" pattern="[0-9]*" autocomplete="off">
+              <div class="stack-edit-actions">
+                <button class="btn btn-primary btn-sm" type="submit">Save</button>
+                <button class="btn btn-ghost btn-sm" type="button" data-role="stack-cancel">Cancel</button>
+              </div>
+            </form>
+            <div class="chips" aria-hidden="true"><i></i><i></i><i></i></div>
+            <p class="player-meta" data-role="inpot">&nbsp;</p>
+            <div class="player-actions">
+              <button class="btn btn-danger btn-sm" type="button" data-act="fold">Fold</button>
+              <button class="btn btn-tonal btn-sm" type="button" data-act="allin">All-in</button>
+            </div>
+          </article>
+        </div>
+        <p id="stack-hint" class="visually-hidden">Tap to correct this stack. A correction counts as a top-up or cash-out.</p>
+
+        <section class="betpad" aria-label="Bet amount">
+          <div class="amount-row">
+            <span class="amount-label" id="amount-label">Amount</span>
+            <output id="amount" class="amount-value" aria-labelledby="amount-label" aria-live="off">0</output>
+          </div>
+          <div id="keypad" class="keypad">
+            <button type="button" class="key" data-key="1">1</button>
+            <button type="button" class="key" data-key="2">2</button>
+            <button type="button" class="key" data-key="3">3</button>
+            <button type="button" class="key key-quick" data-quick="bb" id="quick-bb">+BB</button>
+            <button type="button" class="key" data-key="4">4</button>
+            <button type="button" class="key" data-key="5">5</button>
+            <button type="button" class="key" data-key="6">6</button>
+            <button type="button" class="key key-quick" data-quick="half">½ pot</button>
+            <button type="button" class="key" data-key="7">7</button>
+            <button type="button" class="key" data-key="8">8</button>
+            <button type="button" class="key" data-key="9">9</button>
+            <button type="button" class="key key-quick" data-quick="pot">Pot</button>
+            <button type="button" class="key" data-key="00">00</button>
+            <button type="button" class="key" data-key="0">0</button>
+            <button type="button" class="key" data-key="back" aria-label="Delete last digit">
+              <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true" focusable="false"><path d="M9 5h11a1 1 0 0 1 1 1v12a1 1 0 0 1-1 1H9l-6-7 6-7Z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/><path d="m12 9 6 6m0-6-6 6" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+            </button>
+            <button type="button" class="key key-quick" data-quick="clear">Clear</button>
+          </div>
+          <div class="bet-buttons">
+            <button type="button" class="btn btn-primary btn-bet" data-bet="0" disabled>
+              <span class="btn-bet-name" data-name="0">P1</span><span class="btn-bet-label" data-role="bet-label">Bet</span>
+            </button>
+            <button type="button" class="btn btn-primary btn-bet" data-bet="1" disabled>
+              <span class="btn-bet-name" data-name="1">P2</span><span class="btn-bet-label" data-role="bet-label">Bet</span>
+            </button>
+          </div>
+        </section>
+      </div>
+
+      <!-- ---------- History ---------- -->
+      <div id="panel-history" class="panel" role="tabpanel" aria-labelledby="tab-history" hidden>
+        <header class="panel-head">
+          <h2 class="panel-title">History</h2>
+          <button id="manual-btn" class="btn btn-tonal btn-sm" type="button">Add hand</button>
+        </header>
+        <button id="history-undo" class="btn btn-secondary btn-block undo-last" type="button" hidden>
+          <span class="undo-last-label">Undo last</span>
+          <span id="history-undo-text" class="undo-last-text"></span>
+        </button>
+        <ol id="history-list" class="history" aria-label="Actions, newest first"></ol>
+        <p id="history-empty" class="empty">No actions yet. Bets, folds, showdowns, top-ups and corrections all show up here.</p>
+      </div>
+
+      <!-- ---------- Summary ---------- -->
+      <div id="panel-summary" class="panel" role="tabpanel" aria-labelledby="tab-summary" hidden>
+        <section class="card settle" aria-labelledby="settle-title">
+          <h2 id="settle-title" class="card-title">Settle up</h2>
+          <p id="settle-line" class="settle-line">All square.</p>
+          <p id="settle-money" class="settle-money" hidden></p>
+          <p id="settle-note" class="meta" hidden></p>
+          <form id="chip-value-form" class="inline-form" novalidate>
+            <label class="field field-inline">
+              <span class="field-label">Value per chip</span>
+              <input id="chip-value" inputmode="numeric" pattern="[0-9]*" placeholder="0" autocomplete="off">
+            </label>
+            <button class="btn btn-tonal btn-sm" type="submit">Set</button>
+          </form>
+          <p class="hint">Optional. Converts chips to money (whole units, e.g. VND). 0 shows chips only.</p>
+        </section>
+
+        <section class="stats" aria-label="Session stats">
+          <div class="stat"><span id="stat-hands" class="stat-value">0</span><span class="stat-label">Hands</span></div>
+          <div class="stat"><span id="stat-biggest" class="stat-value">0</span><span class="stat-label">Biggest pot</span></div>
+          <div class="stat"><span id="stat-total" class="stat-value">0</span><span class="stat-label">Chips in play</span></div>
+        </section>
+
+        <section class="card" aria-labelledby="net-title">
+          <h2 id="net-title" class="card-title">Players</h2>
+          <ul id="net-list" class="net-list"></ul>
+        </section>
+
+        <form id="settings-form" class="card form" novalidate aria-labelledby="settings-title">
+          <h2 id="settings-title" class="card-title">Table settings</h2>
+          <div class="grid-2">
+            <label class="field"><span class="field-label">Player 1</span><input id="s-name0" maxlength="24" autocomplete="off"></label>
+            <label class="field"><span class="field-label">Player 2</span><input id="s-name1" maxlength="24" autocomplete="off"></label>
+            <label class="field"><span class="field-label">Small blind</span><input id="s-sb" inputmode="numeric" pattern="[0-9]*" placeholder="none" autocomplete="off"></label>
+            <label class="field"><span class="field-label">Big blind</span><input id="s-bb" inputmode="numeric" pattern="[0-9]*" placeholder="none" autocomplete="off"></label>
+          </div>
+          <p id="settings-error" class="form-error" role="alert"></p>
+          <button class="btn btn-secondary btn-block" type="submit">Save settings</button>
+        </form>
+
+        <section class="card" aria-labelledby="room-title">
+          <h2 id="room-title" class="card-title">Room</h2>
+          <p class="room-share">Code <strong id="share-code" class="share-code">------</strong></p>
+          <p id="expiry" class="meta"></p>
+          <div class="stack-v">
+            <button id="copy-link" class="btn btn-tonal btn-block" type="button">Copy join link</button>
+            <button id="leave-btn" class="btn btn-ghost btn-block" type="button">Leave room</button>
+            <button id="end-btn" class="btn btn-danger btn-block" type="button" hidden>End session for both</button>
+          </div>
+        </section>
+      </div>
+
+      <nav class="tabbar" aria-label="Room sections">
+        <div class="tabbar-inner" role="tablist">
+          <a id="tab-table" class="tab" role="tab" data-tab="table" aria-controls="panel-table" aria-selected="true" href="#">
+            <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><ellipse cx="12" cy="12" rx="9" ry="6" fill="none" stroke="currentColor" stroke-width="1.8"/><ellipse cx="12" cy="12" rx="4" ry="2.4" fill="none" stroke="currentColor" stroke-width="1.8"/></svg>
+            <span>Table</span>
+          </a>
+          <a id="tab-history" class="tab" role="tab" data-tab="history" aria-controls="panel-history" aria-selected="false" href="#">
+            <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M5 6h14M5 12h14M5 18h9" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+            <span>History</span>
+          </a>
+          <a id="tab-summary" class="tab" role="tab" data-tab="summary" aria-controls="panel-summary" aria-selected="false" href="#">
+            <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M4 19h16M7 16V10M12 16V5M17 16v-4" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+            <span>Summary</span>
+          </a>
+        </div>
+      </nav>
+    </section>
+
+    <noscript><p class="card">Chip Tracker needs JavaScript to sync the table between phones.</p></noscript>
+  </main>
+
+  <div id="toast" class="toast" role="status" hidden>
+    <span id="toast-text" class="toast-text"></span>
+    <button id="toast-action" class="toast-action" type="button" hidden>Undo</button>
+  </div>
+
+  <!-- ===================== Dialogs ===================== -->
+  <dialog id="dlg-manual" class="dialog" aria-labelledby="manual-title">
+    <form method="dialog" id="manual-form" class="form" novalidate>
+      <h2 id="manual-title" class="card-title">Add a hand</h2>
+      <p class="hint">For a hand you forgot to track. Both players put in half the pot; the winner takes it.</p>
+      <fieldset class="fieldset">
+        <legend class="field-label">Winner</legend>
+        <div class="segmented" role="radiogroup">
+          <label class="seg"><input type="radio" name="winner" value="0" checked><span data-name="0">P1</span></label>
+          <label class="seg"><input type="radio" name="winner" value="split"><span>Split</span></label>
+          <label class="seg"><input type="radio" name="winner" value="1"><span data-name="1">P2</span></label>
+        </div>
+      </fieldset>
+      <label class="field">
+        <span class="field-label">Total pot</span>
+        <input id="manual-pot" name="pot" inputmode="numeric" pattern="[0-9]*" autocomplete="off" placeholder="e.g. 400">
+      </label>
+      <p id="manual-error" class="form-error" role="alert"></p>
+      <div class="dialog-actions">
+        <button class="btn btn-ghost" type="button" data-close>Cancel</button>
+        <button class="btn btn-primary" type="submit" value="ok">Add hand</button>
+      </div>
+    </form>
+  </dialog>
+
+  <dialog id="dlg-rebuy" class="dialog" aria-labelledby="rebuy-title">
+    <form method="dialog" id="rebuy-form" class="form" novalidate>
+      <h2 id="rebuy-title" class="card-title">Top up <span id="rebuy-name"></span></h2>
+      <p class="hint">Adds chips to the stack and to this player's buy-in, so settle-up stays fair.</p>
+      <label class="field">
+        <span class="field-label">Chips to add</span>
+        <input id="rebuy-amount" name="amount" inputmode="numeric" pattern="[0-9]*" autocomplete="off">
+      </label>
+      <p id="rebuy-error" class="form-error" role="alert"></p>
+      <div class="dialog-actions">
+        <button class="btn btn-ghost" type="button" data-close>Cancel</button>
+        <button class="btn btn-primary" type="submit" value="ok">Top up</button>
+      </div>
+    </form>
+  </dialog>
+
+  <dialog id="dlg-confirm" class="dialog" aria-labelledby="confirm-title" aria-describedby="confirm-text">
+    <form method="dialog" class="form" novalidate>
+      <h2 id="confirm-title" class="card-title">Are you sure?</h2>
+      <p id="confirm-text" class="hint"></p>
+      <div class="dialog-actions">
+        <button class="btn btn-ghost" type="submit" value="cancel">Cancel</button>
+        <button id="confirm-ok" class="btn btn-danger" type="submit" value="ok">Confirm</button>
+      </div>
+    </form>
+  </dialog>
+</body>
+</html>

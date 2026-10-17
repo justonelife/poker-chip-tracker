@@ -1,0 +1,10 @@
+{
+  "name": "Chip Tracker",
+  "short_name": "Chips",
+  "description": "Heads-up poker chip ledger for live games.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#0a1410",
+  "theme_color": "#0a1410",
+  "icons": [{ "src": "/icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" }]
+}
